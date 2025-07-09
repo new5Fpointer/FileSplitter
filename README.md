@@ -19,6 +19,7 @@
    ```
    pip install chardet
    ```
+#文件结构
 ```
 file_splitter/
 ├── main.py                      # 程序入口
