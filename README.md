@@ -26,4 +26,3 @@ file_splitter/
     ├── splitter.py              # 文件分割核心逻辑
     └── file_utils.py            # 文件工具函数
 ```
-部分代码使用deepseek r1大模型
