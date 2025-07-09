@@ -1,16 +1,18 @@
 import os
 import math
 import chardet
+import locale
 from .file_utils import calculate_total_chars
 
-def split_file(input_path, output_dir, chars_per_file, encoding, 
+def split_file(input_path, output_dir, chars_per_file, input_encoding, output_encoding,
               progress_callback=None, log_callback=None):
     """
     分割文件
     :param input_path: 输入文件路径
     :param output_dir: 输出目录
     :param chars_per_file: 每个分割文件的字符数
-    :param encoding: 文件编码
+    :param input_encoding: 输入文件编码
+    :param output_encoding: 输出文件编码
     :param progress_callback: 进度回调函数
     :param log_callback: 日志回调函数
     """
@@ -25,20 +27,31 @@ def split_file(input_path, output_dir, chars_per_file, encoding,
     filename = os.path.basename(input_path)
     base_name, ext = os.path.splitext(filename)
     
-    # 如果是自动检测编码
-    if encoding == "auto":
+    # 如果是自动检测输入编码
+    if input_encoding == "auto":
         with open(input_path, "rb") as f:
             raw_data = f.read(4096)  # 读取前4KB检测
             result = chardet.detect(raw_data)
-            encoding = result['encoding'] or 'utf-8'
+            input_encoding = result['encoding'] or 'utf-8'
         if log_callback:
-            log_callback(f"自动检测到编码: {encoding}")
+            log_callback(f"自动检测到输入编码: {input_encoding}")
+    
+    # 确定输出编码
+    if output_encoding == "同输入编码":
+        output_encoding = input_encoding
+        if log_callback:
+            log_callback(f"输出编码使用输入编码: {input_encoding}")
+    elif output_encoding == "ansi":
+        # 获取系统ANSI编码
+        output_encoding = locale.getpreferredencoding(do_setlocale=False)
+        if log_callback:
+            log_callback(f"系统ANSI编码: {output_encoding}")
     
     # 计算总字符数
     if log_callback:
         log_callback("正在计算文件总字符数...")
     
-    total_chars = calculate_total_chars(input_path, encoding)
+    total_chars = calculate_total_chars(input_path, input_encoding)
     
     if log_callback:
         log_callback(f"文件总字符数: {total_chars}")
@@ -49,9 +62,10 @@ def split_file(input_path, output_dir, chars_per_file, encoding,
     if log_callback:
         log_callback(f"将分割为 {num_files} 个文件")
         log_callback("开始分割文件...")
+        log_callback(f"输入编码: {input_encoding}, 输出编码: {output_encoding}")
     
     # 实际分割文件
-    with open(input_path, "r", encoding=encoding, errors="replace") as f:
+    with open(input_path, "r", encoding=input_encoding, errors="replace") as f:
         for i in range(num_files):
             # 更新进度
             if progress_callback:
@@ -76,11 +90,19 @@ def split_file(input_path, output_dir, chars_per_file, encoding,
                 chunk += data
                 chars_read += len(data)
             
-            # 写入分割文件
-            with open(output_path, "w", encoding=encoding) as out_f:
-                out_f.write(chunk)
+            try:
+                # 写入分割文件（使用输出编码）
+                with open(output_path, "w", encoding=output_encoding, errors="replace") as out_f:
+                    out_f.write(chunk)
+                
+                if log_callback:
+                    log_callback(f"已创建分割文件: {os.path.basename(output_path)} ({len(chunk)} 字符)")
             
-            if log_callback:
-                log_callback(f"已创建分割文件: {os.path.basename(output_path)} ({len(chunk)} 字符)")
+            except UnicodeEncodeError as e:
+                # 处理编码错误
+                error_msg = f"编码错误: 无法使用 {output_encoding} 编码保存文件 {output_path}"
+                if log_callback:
+                    log_callback(error_msg)
+                raise e
     
     return num_files

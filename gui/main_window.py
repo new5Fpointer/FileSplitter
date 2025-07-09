@@ -11,7 +11,7 @@ class FileSplitterApp:
     def __init__(self, root):
         self.root = root
         self.root.title("文件分割工具")
-        self.root.geometry("700x500")
+        self.root.geometry("750x550")  # 增加宽度以适应新控件
         self.root.resizable(True, True)
         
         # 初始化样式管理器
@@ -57,14 +57,28 @@ class FileSplitterApp:
         )
         self.chars_entry.grid(row=3, column=0, columnspan=3, sticky="w", pady=5)
         
-        # 编码设置
+        # 编码设置（输入）
+        encoding_frame = ttk.Frame(self.main_frame)
+        encoding_frame.grid(row=4, column=0, columnspan=3, sticky="ew", pady=5)
+        
+        ttk.Label(encoding_frame, text="编码设置:", style="Label.TLabel").pack(side=tk.LEFT, padx=(0, 10))
+        
         self.encoding_combo = LabelledCombobox(
-            self.main_frame, "文件编码:",
+            encoding_frame, "输入编码:",
             values=["utf-8", "gbk", "gb2312", "big5", "latin1", "auto"],
             default_value="utf-8",
             width=10
         )
-        self.encoding_combo.grid(row=4, column=0, columnspan=3, sticky="w", pady=5)
+        self.encoding_combo.pack(side=tk.LEFT, padx=(0, 20))
+        
+        # 输出编码设置
+        self.output_encoding_combo = LabelledCombobox(
+            encoding_frame, "输出编码:",
+            values=["同输入编码", "utf-8", "gbk", "gb2312", "latin1", "ansi"],
+            default_value="同输入编码",
+            width=10
+        )
+        self.output_encoding_combo.pack(side=tk.LEFT)
         
         # 进度条
         self.progress_var = tk.DoubleVar()
@@ -171,21 +185,23 @@ class FileSplitterApp:
             messagebox.showerror("错误", "请输入有效的字符数（正整数）")
             return
         
-        # 获取编码
-        encoding = self.encoding_combo.get_value()
+        # 获取输入和输出编码
+        input_encoding = self.encoding_combo.get_value()
+        output_encoding = self.output_encoding_combo.get_value()
         
         # 开始分割
         try:
             self.log_widget.log(f"开始分割文件: {input_path}")
             self.log_widget.log(f"每个分割文件将包含 {chars_per_file} 个字符")
-            self.log_widget.log(f"使用编码: {encoding}")
+            self.log_widget.log(f"输入编码: {input_encoding}, 输出编码: {output_encoding}")
             
             # 调用分割函数
             split_file(
                 input_path=input_path,
                 output_dir=output_dir,
                 chars_per_file=chars_per_file,
-                encoding=encoding,
+                input_encoding=input_encoding,
+                output_encoding=output_encoding,
                 progress_callback=lambda p: self.progress_var.set(p),
                 log_callback=self.log_widget.log
             )
