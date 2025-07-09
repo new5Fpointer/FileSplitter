@@ -29,8 +29,7 @@ class FileSplitterApp:
         # 添加初始日志
         self.log_widget.log("欢迎使用文件分割工具")
         self.log_widget.log("请选择输入文件和输出目录")
-    
-    # 将浏览方法移到 create_widgets 之前
+        
     def browse_input_file(self):
         """打开文件选择对话框"""
         file_path = filedialog.askopenfilename(
