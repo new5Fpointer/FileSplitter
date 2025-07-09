@@ -2,6 +2,8 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinter import font as tkfont
+import platform
+import subprocess
 from .font_settings import FontSettingsDialog
 from .widgets import LabelledEntry, LabelledCombobox, LogWidget
 from .styles import StyleManager
@@ -11,7 +13,7 @@ class FileSplitterApp:
     def __init__(self, root):
         self.root = root
         self.root.title("文件分割工具")
-        self.root.geometry("750x550")  # 增加宽度以适应新控件
+        self.root.geometry("750x550")
         self.root.resizable(True, True)
         
         # 初始化样式管理器
@@ -27,7 +29,49 @@ class FileSplitterApp:
         # 添加初始日志
         self.log_widget.log("欢迎使用文件分割工具")
         self.log_widget.log("请选择输入文件和输出目录")
-        
+    
+    # 将浏览方法移到 create_widgets 之前
+    def browse_input_file(self):
+        """打开文件选择对话框"""
+        file_path = filedialog.askopenfilename(
+            title="选择要分割的文件",
+            filetypes=[("文本文件", "*.txt"), ("所有文件", "*.*")]
+        )
+        if file_path:
+            self.input_entry.set_value(file_path)
+            # 自动设置输出目录为输入文件所在目录
+            if not self.output_entry.get_value():
+                self.output_entry.set_value(os.path.dirname(file_path))
+            self.log_widget.log(f"已选择输入文件: {file_path}")
+    
+    def browse_output_dir(self):
+        """打开目录选择对话框"""
+        dir_path = filedialog.askdirectory(title="选择输出目录")
+        if dir_path:
+            self.output_entry.set_value(dir_path)
+            self.log_widget.log(f"已选择输出目录: {dir_path}")
+    
+    def open_output_directory(self):
+        """打开输出目录"""
+        output_dir = self.output_entry.get_value()
+        if output_dir and os.path.isdir(output_dir):
+            try:
+                # 根据操作系统使用不同的方法打开目录
+                system = platform.system()
+                if system == "Windows":
+                    os.startfile(output_dir)
+                elif system == "Darwin":  # macOS
+                    subprocess.Popen(["open", output_dir])
+                else:  # Linux和其他系统
+                    subprocess.Popen(["xdg-open", output_dir])
+                self.log_widget.log(f"已打开输出目录: {output_dir}")
+            except Exception as e:
+                messagebox.showerror("错误", f"无法打开目录: {e}")
+                self.log_widget.log(f"打开目录错误: {e}")
+        else:
+            messagebox.showwarning("警告", "输出目录无效或不存在")
+            self.log_widget.log("无法打开无效的输出目录")
+    
     def create_widgets(self):
         # 标题
         title_label = ttk.Label(self.main_frame, text="文件分割工具", style="Title.TLabel")
@@ -36,7 +80,7 @@ class FileSplitterApp:
         # 输入文件选择
         self.input_entry = LabelledEntry(
             self.main_frame, "输入文件:", 
-            browse_cmd=self.browse_input_file,
+            browse_cmd=self.browse_input_file,  # 现在这个方法已经定义
             entry_width=50
         )
         self.input_entry.grid(row=1, column=0, columnspan=3, sticky="ew", pady=5)
@@ -44,7 +88,7 @@ class FileSplitterApp:
         # 输出目录选择
         self.output_entry = LabelledEntry(
             self.main_frame, "输出目录:", 
-            browse_cmd=self.browse_output_dir,
+            browse_cmd=self.browse_output_dir,  # 现在这个方法已经定义
             entry_width=50
         )
         self.output_entry.grid(row=2, column=0, columnspan=3, sticky="ew", pady=5)
@@ -89,7 +133,7 @@ class FileSplitterApp:
         self.progress.grid(row=5, column=0, columnspan=3, sticky="ew", pady=15)
         
         # 状态标签
-        self.status_var = tk.StringVar(value="准备就绪")
+        self.status_var = tk.StringVar(value="分割进度")
         status_label = ttk.Label(
             self.main_frame, textvariable=self.status_var, 
             style="Status.TLabel"
@@ -115,6 +159,15 @@ class FileSplitterApp:
         )
         font_btn.pack(side=tk.LEFT, padx=10)
         
+        # 新增：打开输出目录按钮（初始禁用）
+        self.open_output_btn = ttk.Button(
+            btn_frame, text="打开输出目录", 
+            command=self.open_output_directory,
+            state=tk.DISABLED,
+            style="Button.TButton"
+        )
+        self.open_output_btn.pack(side=tk.LEFT, padx=10)
+        
         quit_btn = ttk.Button(
             btn_frame, text="退出", 
             command=self.root.quit,
@@ -132,26 +185,6 @@ class FileSplitterApp:
         # 配置网格权重
         self.main_frame.columnconfigure(0, weight=1)
         self.main_frame.rowconfigure(9, weight=1)
-        
-    def browse_input_file(self):
-        """打开文件选择对话框"""
-        file_path = filedialog.askopenfilename(
-            title="选择要分割的文件",
-            filetypes=[("文本文件", "*.txt"), ("所有文件", "*.*")]
-        )
-        if file_path:
-            self.input_entry.set_value(file_path)
-            # 自动设置输出目录为输入文件所在目录
-            if not self.output_entry.get_value():
-                self.output_entry.set_value(os.path.dirname(file_path))
-            self.log_widget.log(f"已选择输入文件: {file_path}")
-    
-    def browse_output_dir(self):
-        """打开目录选择对话框"""
-        dir_path = filedialog.askdirectory(title="选择输出目录")
-        if dir_path:
-            self.output_entry.set_value(dir_path)
-            self.log_widget.log(f"已选择输出目录: {dir_path}")
     
     def open_font_settings(self):
         """打开字体设置对话框"""
@@ -189,6 +222,9 @@ class FileSplitterApp:
         input_encoding = self.encoding_combo.get_value()
         output_encoding = self.output_encoding_combo.get_value()
         
+        # 禁用打开输出目录按钮（防止在分割过程中点击）
+        self.open_output_btn.config(state=tk.DISABLED)
+        
         # 开始分割
         try:
             self.log_widget.log(f"开始分割文件: {input_path}")
@@ -211,6 +247,12 @@ class FileSplitterApp:
             messagebox.showinfo("完成", "文件分割完成！")
             self.log_widget.log("文件分割操作已完成")
             
+            # 启用打开输出目录按钮
+            self.open_output_btn.config(state=tk.NORMAL)
+            self.log_widget.log("点击'打开输出目录'按钮查看分割后的文件")
+            
         except Exception as e:
             messagebox.showerror("错误", f"处理文件时出错: {e}")
             self.log_widget.log(f"错误: {e}")
+            # 发生错误时保持按钮禁用状态
+            self.open_output_btn.config(state=tk.DISABLED)
