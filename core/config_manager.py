@@ -36,7 +36,7 @@ class ConfigManager:
             # 创建默认配置
             self.config['Settings'] = {
                 'chars_per_file': '1000',
-                'input_encoding': 'utf-8',
+                'input_encoding': 'auto',
                 'output_encoding': '同输入编码',
                 'font_family': '微软雅黑',
                 'font_size': '10',
