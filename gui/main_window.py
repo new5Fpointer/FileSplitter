@@ -8,13 +8,18 @@ from .font_settings import FontSettingsDialog
 from .widgets import LabelledEntry, LabelledCombobox, LogWidget
 from .styles import StyleManager
 from core.splitter import split_file
+from core.config_manager import ConfigManager  # 更新导入路径
 
 class FileSplitterApp:
+    
     def __init__(self, root):
         self.root = root
         self.root.title("文件分割工具")
         self.root.geometry("750x550")
         self.root.resizable(True, True)
+        
+        # 初始化配置管理器
+        self.config = ConfigManager()
         
         # 初始化样式管理器
         self.style_manager = StyleManager(root)
@@ -26,9 +31,86 @@ class FileSplitterApp:
         # 创建界面组件
         self.create_widgets()
         
+        # 应用保存的字体设置
+        self.apply_saved_font_settings()
+        
+        # 应用保存的设置（现在在组件创建后调用）
+        self.apply_saved_settings()
+        
         # 添加初始日志
         self.log_widget.log("欢迎使用文件分割工具")
         self.log_widget.log("请选择输入文件和输出目录")
+        
+        # 绑定设置更改事件
+        self.bind_setting_changes()
+    
+    def bind_setting_changes(self):
+        """绑定设置更改事件"""
+        # 分割大小更改时保存
+        self.chars_entry.entry.bind("<FocusOut>", self.save_settings)
+        
+        # 编码设置更改时保存
+        self.encoding_combo.combo.bind("<<ComboboxSelected>>", self.save_settings)
+        self.output_encoding_combo.combo.bind("<<ComboboxSelected>>", self.save_settings)
+    
+    def apply_saved_font_settings(self):
+        """应用保存的字体设置"""
+        font_family = self.config.get_setting('Settings', 'font_family', '微软雅黑')
+        font_size = int(self.config.get_setting('Settings', 'font_size', 10))
+        font_weight = self.config.get_setting('Settings', 'font_weight', 'normal')
+        font_slant = self.config.get_setting('Settings', 'font_slant', 'roman')
+        
+        # 更新样式管理器
+        self.style_manager.update_font(font_family, font_size, font_weight, font_slant)
+        
+        # 更新日志字体
+        self.log_widget.update_font(font_family, font_size, font_weight, font_slant)
+    
+    def apply_saved_settings(self):
+        """应用保存的设置"""
+        # 分割大小
+        chars_per_file = self.config.get_setting('Settings', 'chars_per_file', '1000')
+        self.chars_entry.set_value(chars_per_file)
+        
+        # 输入编码
+        input_encoding = self.config.get_setting('Settings', 'input_encoding', 'utf-8')
+        self.encoding_combo.set_value(input_encoding)
+        
+        # 输出编码
+        output_encoding = self.config.get_setting('Settings', 'output_encoding', '同输入编码')
+        self.output_encoding_combo.set_value(output_encoding)
+    
+    def save_settings(self, event=None):
+        """保存当前设置"""
+        # 保存分割大小
+        chars_per_file = self.chars_entry.get_value()
+        self.config.set_setting('Settings', 'chars_per_file', chars_per_file)
+        
+        # 保存输入编码
+        input_encoding = self.encoding_combo.get_value()
+        self.config.set_setting('Settings', 'input_encoding', input_encoding)
+        
+        # 保存输出编码
+        output_encoding = self.output_encoding_combo.get_value()
+        self.config.set_setting('Settings', 'output_encoding', output_encoding)
+        
+        # 记录日志
+        self.log_widget.log("设置已自动保存")
+    
+    def save_font_settings(self, font_family, font_size, font_weight, font_slant):
+        """保存字体设置"""
+        self.config.set_setting('Settings', 'font_family', font_family)
+        self.config.set_setting('Settings', 'font_size', font_size)
+        self.config.set_setting('Settings', 'font_weight', font_weight)
+        self.config.set_setting('Settings', 'font_slant', font_slant)
+        
+        # 记录日志
+        font_info = f"{font_family}, {font_size}pt"
+        if font_weight == "bold":
+            font_info += " 加粗"
+        if font_slant == "italic":
+            font_info += " 斜体"
+        self.log_widget.log(f"字体设置已保存: {font_info}")
     
     def browse_input_file(self):
         """打开文件选择对话框"""
@@ -132,7 +214,7 @@ class FileSplitterApp:
         self.progress.grid(row=5, column=0, columnspan=3, sticky="ew", pady=15)
         
         # 状态标签
-        self.status_var = tk.StringVar(value="分割进度")
+        self.status_var = tk.StringVar(value="准备就绪")
         status_label = ttk.Label(
             self.main_frame, textvariable=self.status_var, 
             style="Status.TLabel"
@@ -175,7 +257,7 @@ class FileSplitterApp:
         )
         quit_btn.pack(side=tk.RIGHT, padx=10)
         
-        #日志区域
+        # 日志区域
         self.log_widget = LogWidget(self.main_frame)
         self.log_widget.grid(row=9, column=0, columnspan=3, sticky="nsew")
         
@@ -189,11 +271,15 @@ class FileSplitterApp:
             self.root, 
             self.style_manager, 
             self.log_widget.log,
-            self.log_widget.update_font
+            self.log_widget.update_font,
+            on_font_applied=self.save_font_settings
         )
     
     def start_split(self):
         """开始分割文件"""
+        # 保存当前设置
+        self.save_settings()
+        
         # 获取输入值
         input_path = self.input_entry.get_value()
         output_dir = self.output_entry.get_value()

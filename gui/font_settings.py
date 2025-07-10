@@ -3,7 +3,7 @@ from tkinter import ttk, font as tkfont
 
 class FontSettingsDialog(tk.Toplevel):
     """字体设置对话框"""
-    def __init__(self, parent, style_manager, log_callback, update_log_font):
+    def __init__(self, parent, style_manager, log_callback, update_log_font, on_font_applied=None):
         super().__init__(parent)
         self.title("字体设置")
         self.geometry("500x525")
@@ -14,6 +14,7 @@ class FontSettingsDialog(tk.Toplevel):
         self.style_manager = style_manager
         self.log_callback = log_callback
         self.update_log_font = update_log_font
+        self.on_font_applied = on_font_applied  # 新增：字体应用回调
         self.current_font = style_manager.current_font
         self.current_size = style_manager.current_size
         self.current_weight = style_manager.current_weight
@@ -170,4 +171,14 @@ class FontSettingsDialog(tk.Toplevel):
         font_info = f"{self.current_font}, {self.current_size}pt, {weight_text}{slant_text}"
         
         self.log_callback(f"已应用新字体: {font_info}")
+        
+        # 调用字体应用回调
+        if self.on_font_applied:
+            self.on_font_applied(
+                self.current_font, 
+                self.current_size,
+                self.current_weight,
+                self.current_slant
+            )
+        
         self.destroy()

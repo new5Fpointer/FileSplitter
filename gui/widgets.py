@@ -61,6 +61,10 @@ class LabelledCombobox(ttk.Frame):
     def get_value(self):
         """获取下拉框的值"""
         return self.combo_var.get().strip()
+    
+    def set_value(self, value):
+        """设置下拉框的值"""
+        self.combo_var.set(value)
 
 class LogWidget(tk.Frame):
     """日志显示组件"""
