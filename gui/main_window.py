@@ -174,10 +174,6 @@ class FileSplitterApp:
         )
         quit_btn.pack(side=tk.RIGHT, padx=10)
         
-        # 日志区域
-        ttk.Label(self.main_frame, text="操作日志:", style="Label.TLabel").grid(
-            row=8, column=0, sticky="w", pady=5)
-        
         self.log_widget = LogWidget(self.main_frame)
         self.log_widget.grid(row=9, column=0, columnspan=3, sticky="nsew")
         
