@@ -6,6 +6,16 @@ from .file_utils import calculate_total_chars
 
 def split_file(input_path, output_dir, chars_per_file, input_encoding, output_encoding,
               progress_callback=None, log_callback=None):
+    """
+    分割文件
+    :param input_path: 输入文件路径
+    :param output_dir: 输出目录
+    :param chars_per_file: 每个分割文件的字符数
+    :param input_encoding: 输入文件编码
+    :param output_encoding: 输出文件编码
+    :param progress_callback: 进度回调函数
+    :param log_callback: 日志回调函数
+    """
     # 验证文件是否存在
     if not os.path.isfile(input_path):
         raise FileNotFoundError(f"文件不存在: {input_path}")
@@ -57,7 +67,7 @@ def split_file(input_path, output_dir, chars_per_file, input_encoding, output_en
     # 实际分割文件
     with open(input_path, "r", encoding=input_encoding, errors="replace") as f:
         for i in range(num_files):
-            # 更新进度
+            # 更新进度 - 每个文件都更新
             if progress_callback:
                 progress = (i + 1) / num_files * 100
                 progress_callback(progress)
