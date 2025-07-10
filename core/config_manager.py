@@ -17,16 +17,16 @@ class ConfigManager:
             # Windows: 用户AppData目录
             appdata = os.getenv('APPDATA')
             if appdata:
-                return os.path.join(appdata, "FileSplitter", "settings.ini")
+                return os.path.join(appdata, "file_operations", "settings.ini")
             return "settings.ini"
         elif system == "Darwin":
             # macOS: 用户Library/Preferences目录
             home = os.path.expanduser("~")
-            return os.path.join(home, "Library", "Preferences", "FileSplitter", "settings.ini")
+            return os.path.join(home, "Library", "Preferences", "file_operations", "settings.ini")
         else:
             # Linux/Unix: 用户.config目录
             home = os.path.expanduser("~")
-            return os.path.join(home, ".config", "FileSplitter", "settings.ini")
+            return os.path.join(home, ".config", "file_operations", "settings.ini")
 
     def _ensure_config_file(self):
         """确保配置文件和目录存在"""
