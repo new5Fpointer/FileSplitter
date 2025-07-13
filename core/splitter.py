@@ -5,7 +5,7 @@ import locale
 from .file_utils import calculate_total_chars
 
 def split_file(input_path, output_dir, chars_per_file, input_encoding, output_encoding,
-              progress_callback=None, log_callback=None):
+              split_by_line=False, progress_callback=None, log_callback=None):
     """
     分割文件
     :param input_path: 输入文件路径
@@ -13,6 +13,7 @@ def split_file(input_path, output_dir, chars_per_file, input_encoding, output_en
     :param chars_per_file: 每个分割文件的字符数
     :param input_encoding: 输入文件编码
     :param output_encoding: 输出文件编码
+    :param split_by_line: 是否按行分割
     :param progress_callback: 进度回调函数
     :param log_callback: 日志回调函数
     """
@@ -63,46 +64,142 @@ def split_file(input_path, output_dir, chars_per_file, input_encoding, output_en
         log_callback(f"将分割为 {num_files} 个文件")
         log_callback("开始分割文件...")
         log_callback(f"输入编码: {input_encoding}, 输出编码: {output_encoding}")
+        log_callback(f"分割方式: {'按行分割' if split_by_line else '按字符分割'}")
     
     # 实际分割文件
     with open(input_path, "r", encoding=input_encoding, errors="replace") as f:
-        for i in range(num_files):
-            # 更新进度 - 每个文件都更新
-            if progress_callback:
-                progress = (i + 1) / num_files * 100
-                progress_callback(progress)
+        current_file = 1
+        current_chars = 0
+        current_chunk = []
+        
+        for line in f:
+            line_length = len(line)
             
-            # 创建输出文件名
+            if split_by_line:
+                # 按行分割模式，每个文件只包含整行
+                if current_chars + line_length > chars_per_file:
+                    # 当前行会超出限制，先保存之前的块
+                    if current_chunk:
+                        chunk = ''.join(current_chunk)
+                        output_path = os.path.join(
+                            output_dir, 
+                            f"{base_name}_part{current_file}{ext}"
+                        )
+                        
+                        try:
+                            with open(output_path, "w", encoding=output_encoding, errors="replace") as out_f:
+                                out_f.write(chunk)
+                            if log_callback:
+                                log_callback(f"已创建分割文件: {os.path.basename(output_path)} ({len(chunk)} 字符)")
+                        except Exception as e:
+                            if log_callback:
+                                log_callback(f"保存文件时出错: {str(e)}")
+                        
+                        # 更新进度
+                        if progress_callback:
+                            progress = (current_file / num_files) * 100
+                            progress_callback(progress)
+                        
+                        # 重置当前块
+                        current_file += 1
+                        current_chars = 0
+                        current_chunk = []
+                
+                # 添加当前行到块中
+                current_chunk.append(line)
+                current_chars += line_length
+            
+            else:
+                # 按字符分割模式，当行内容可能被拆分
+                if current_chars + line_length > chars_per_file:
+                    # 找到可以拆分的位置
+                    available_space = chars_per_file - current_chars
+                    if available_space > 0:
+                        # 添加部分字符到当前块
+                        current_chunk.append(line[:available_space])
+                        current_chars += available_space
+                        
+                        # 写入当前块到文件
+                        chunk = ''.join(current_chunk)
+                        output_path = os.path.join(
+                            output_dir, 
+                            f"{base_name}_part{current_file}{ext}"
+                        )
+                        
+                        try:
+                            with open(output_path, "w", encoding=output_encoding, errors="replace") as out_f:
+                                out_f.write(chunk)
+                            if log_callback:
+                                log_callback(f"已创建分割文件: {os.path.basename(output_path)} ({len(chunk)} 字符)")
+                        except Exception as e:
+                            if log_callback:
+                                log_callback(f"保存文件时出错: {str(e)}")
+                        
+                        # 更新进度
+                        if progress_callback:
+                            progress = (current_file / num_files) * 100
+                            progress_callback(progress)
+                        
+                        # 重置当前块
+                        current_file += 1
+                        current_chars = 0
+                        current_chunk = []
+                        
+                        # 剩余部分放到下一个块
+                        current_chunk.append(line[available_space:])
+                        current_chars += line_length - available_space
+                    else:
+                        # 当前行无法放入当前块，直接放到下一个块
+                        if current_chunk:
+                            chunk = ''.join(current_chunk)
+                            output_path = os.path.join(
+                                output_dir, 
+                                f"{base_name}_part{current_file}{ext}"
+                            )
+                            
+                            try:
+                                with open(output_path, "w", encoding=output_encoding, errors="replace") as out_f:
+                                    out_f.write(chunk)
+                                if log_callback:
+                                    log_callback(f"已创建分割文件: {os.path.basename(output_path)} ({len(chunk)} 字符)")
+                            except Exception as e:
+                                if log_callback:
+                                    log_callback(f"保存文件时出错: {str(e)}")
+                            
+                            # 更新进度
+                            if progress_callback:
+                                progress = (current_file / num_files) * 100
+                                progress_callback(progress)
+                            
+                            current_file += 1
+                            current_chars = 0
+                            current_chunk = []
+                        
+                        current_chunk.append(line)
+                        current_chars += line_length
+                else:
+                    current_chunk.append(line)
+                    current_chars += line_length
+        
+        # 写入最后一个块
+        if current_chunk:
+            chunk = ''.join(current_chunk)
             output_path = os.path.join(
                 output_dir, 
-                f"{base_name}_part{i+1}{ext}"
+                f"{base_name}_part{current_file}{ext}"
             )
-            
-            # 读取指定数量的字符
-            chunk = ""
-            chars_read = 0
-            
-            while chars_read < chars_per_file:
-                remaining = chars_per_file - chars_read
-                data = f.read(min(4096, remaining))
-                if not data:
-                    break
-                chunk += data
-                chars_read += len(data)
-            
             try:
-                # 写入分割文件（使用输出编码）
                 with open(output_path, "w", encoding=output_encoding, errors="replace") as out_f:
                     out_f.write(chunk)
-                
                 if log_callback:
                     log_callback(f"已创建分割文件: {os.path.basename(output_path)} ({len(chunk)} 字符)")
-            
-            except UnicodeEncodeError as e:
-                # 处理编码错误
-                error_msg = f"编码错误: 无法使用 {output_encoding} 编码保存文件 {output_path}"
+            except Exception as e:
                 if log_callback:
-                    log_callback(error_msg)
-                raise e
+                    log_callback(f"保存文件时出错: {str(e)}")
+            
+            # 更新进度
+            if progress_callback:
+                progress = (current_file / num_files) * 100
+                progress_callback(progress)
     
-    return num_files
+    return current_file

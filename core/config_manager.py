@@ -41,7 +41,8 @@ class ConfigManager:
                 'font_family': '微软雅黑',
                 'font_size': '10',
                 'font_weight': 'normal',
-                'font_slant': 'roman'
+                'font_slant': 'roman',
+                'split_by_line': 'False'
             }
             self.save_config()
 
