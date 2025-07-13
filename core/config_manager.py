@@ -42,7 +42,8 @@ class ConfigManager:
                 'font_size': '10',
                 'font_weight': 'normal',
                 'font_slant': 'roman',
-                'split_by_line': 'False'
+                'split_by_line': 'False',
+                'line_split_mode': 'strict'
             }
             self.save_config()
 

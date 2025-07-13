@@ -2,10 +2,19 @@ import os
 import math
 import chardet
 import locale
-from .file_utils import calculate_total_chars
+
+def calculate_total_chars(file_path, encoding):
+    total_chars = 0
+    with open(file_path, "r", encoding=encoding, errors="replace") as f:
+        while True:
+            chunk = f.read(4096)  # 4KB块
+            if not chunk:
+                break
+            total_chars += len(chunk)
+    return total_chars
 
 def split_file(input_path, output_dir, chars_per_file, input_encoding, output_encoding,
-              split_by_line=False, progress_callback=None, log_callback=None):
+              split_by_line=False, line_split_mode="strict", progress_callback=None, log_callback=None):
     """
     分割文件
     :param input_path: 输入文件路径
@@ -14,6 +23,7 @@ def split_file(input_path, output_dir, chars_per_file, input_encoding, output_en
     :param input_encoding: 输入文件编码
     :param output_encoding: 输出文件编码
     :param split_by_line: 是否按行分割
+    :param line_split_mode: 行分割模式 ("strict" 或 "flexible")
     :param progress_callback: 进度回调函数
     :param log_callback: 日志回调函数
     """
@@ -65,6 +75,8 @@ def split_file(input_path, output_dir, chars_per_file, input_encoding, output_en
         log_callback("开始分割文件...")
         log_callback(f"输入编码: {input_encoding}, 输出编码: {output_encoding}")
         log_callback(f"分割方式: {'按行分割' if split_by_line else '按字符分割'}")
+        if split_by_line:
+            log_callback(f"行分割模式: {'严格行分割' if line_split_mode == 'strict' else '灵活行分割'}")
     
     # 实际分割文件
     with open(input_path, "r", encoding=input_encoding, errors="replace") as f:
@@ -76,10 +88,14 @@ def split_file(input_path, output_dir, chars_per_file, input_encoding, output_en
             line_length = len(line)
             
             if split_by_line:
-                # 按行分割模式，每个文件只包含整行
-                if current_chars + line_length > chars_per_file:
-                    # 当前行会超出限制，先保存之前的块
-                    if current_chunk:
+                if line_split_mode == "flexible":
+                    # 灵活行分割模式 - 优先保证行完整
+                    if current_chars + line_length > chars_per_file:
+                        # 即使超出限制也加入当前行
+                        current_chunk.append(line)
+                        current_chars += line_length
+                        
+                        # 写入当前块到文件
                         chunk = ''.join(current_chunk)
                         output_path = os.path.join(
                             output_dir, 
@@ -104,13 +120,50 @@ def split_file(input_path, output_dir, chars_per_file, input_encoding, output_en
                         current_file += 1
                         current_chars = 0
                         current_chunk = []
+                    else:
+                        # 当前行加入不会超出限制，正常添加
+                        current_chunk.append(line)
+                        current_chars += line_length
                 
-                # 添加当前行到块中
-                current_chunk.append(line)
-                current_chars += line_length
+                else:  # 严格行分割模式
+                    if current_chars + line_length > chars_per_file:
+                        # 当前行会超出限制，先保存之前的块
+                        if current_chunk:
+                            chunk = ''.join(current_chunk)
+                            output_path = os.path.join(
+                                output_dir, 
+                                f"{base_name}_part{current_file}{ext}"
+                            )
+                            
+                            try:
+                                with open(output_path, "w", encoding=output_encoding, errors="replace") as out_f:
+                                    out_f.write(chunk)
+                                if log_callback:
+                                    log_callback(f"已创建分割文件: {os.path.basename(output_path)} ({len(chunk)} 字符)")
+                            except Exception as e:
+                                if log_callback:
+                                    log_callback(f"保存文件时出错: {str(e)}")
+                            
+                            # 更新进度
+                            if progress_callback:
+                                progress = (current_file / num_files) * 100
+                                progress_callback(progress)
+                            
+                            # 重置当前块
+                            current_file += 1
+                            current_chars = 0
+                            current_chunk = []
+                        
+                        # 将当前行放入新块
+                        current_chunk.append(line)
+                        current_chars = line_length
+                    else:
+                        # 当前行加入不会超出限制，正常添加
+                        current_chunk.append(line)
+                        current_chars += line_length
             
             else:
-                # 按字符分割模式，当行内容可能被拆分
+                # 按字符分割模式
                 if current_chars + line_length > chars_per_file:
                     # 找到可以拆分的位置
                     available_space = chars_per_file - current_chars

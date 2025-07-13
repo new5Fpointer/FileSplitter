@@ -67,45 +67,40 @@ class LabelledCombobox(ttk.Frame):
         self.combo_var.set(value)
 
 class LogWidget(tk.Frame):
-    """日志显示组件"""
+    """日志显示组件 - 只读"""
+
     def __init__(self, parent, **kwargs):
         super().__init__(parent, **kwargs)
-        
-        # 创建日志标签
+
+        # 日志标签
         self.log_label = ttk.Label(self, text="操作日志:", style="Label.TLabel")
         self.log_label.pack(anchor="w", pady=(0, 5))
-        
-        # 创建日志框架
-        self.log_frame = tk.Frame(self)
-        self.log_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # 创建日志文本框
+
+        # 日志文本框
         self.log_font = tk.font.Font(family="微软雅黑", size=9)
         self.log_text = tk.Text(
-            self.log_frame, 
+            self,
             wrap=tk.WORD,
-            font=self.log_font
+            font=self.log_font,
+            state="disabled",          # ← 设为只读
+            cursor="arrow"             # ← 禁用编辑光标
         )
         self.log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        # 创建滚动条
-        self.scrollbar = ttk.Scrollbar(
-            self.log_frame, 
-            command=self.log_text.yview
-        )
+
+        # 滚动条
+        self.scrollbar = ttk.Scrollbar(self, command=self.log_text.yview)
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.log_text.config(yscrollcommand=self.scrollbar.set)
-    
+
     def log(self, message):
-        """添加日志消息"""
+        """追加日志（自动滚动到底部）"""
+        self.log_text.config(state="normal")      # 临时可写
         self.log_text.insert(tk.END, message + "\n")
-        self.log_text.see(tk.END)  # 滚动到底部
-    
+        self.log_text.see(tk.END)
+        self.log_text.config(state="disabled")    # 恢复只读
+
     def update_font(self, family, size, weight="normal", slant="roman"):
         """更新日志字体"""
         self.log_font.configure(
-            family=family, 
-            size=size-1,
-            weight=weight,
-            slant=slant
+            family=family, size=size-1, weight=weight, slant=slant
         )
