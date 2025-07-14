@@ -186,3 +186,60 @@ def split_file_by_lines(input_path, output_dir, lines_per_file,
         if out_f:
             out_f.close()
     return file_no - 1
+
+def split_file_by_parts(input_path, output_dir, total_parts,
+                        input_encoding, output_encoding,
+                        progress_callback=None, log_callback=None):
+    """
+    按指定份数 **严格按字符数** 均分文件（行可能被截断）
+    """
+    if not os.path.isfile(input_path):
+        raise FileNotFoundError(f"文件不存在: {input_path}")
+    if total_parts <= 0:
+        raise ValueError("份数必须大于 0")
+
+    os.makedirs(output_dir, exist_ok=True)
+    filename = os.path.basename(input_path)
+    base_name, ext = os.path.splitext(filename)
+
+    # 编码处理
+    if input_encoding == "auto":
+        with open(input_path, "rb") as f:
+            raw = f.read(4096)
+            input_encoding = chardet.detect(raw)['encoding'] or 'utf-8'
+        if log_callback:
+            log_callback(f"自动检测到输入编码: {input_encoding}")
+
+    if output_encoding == "同输入编码":
+        output_encoding = input_encoding
+    elif output_encoding == "ansi":
+        output_encoding = locale.getpreferredencoding(do_setlocale=False)
+
+    # 总字符数 & 每份字符数
+    total_chars = calculate_total_chars(input_path, input_encoding)
+    chars_per_part = total_chars // total_parts
+    remainder = total_chars % total_parts        # 余数，前 remainder 份多 1 字符
+    if log_callback:
+        log_callback(f"文件总字符数: {total_chars}")
+        log_callback(f"将按 {total_parts} 份分割，"
+                     f"前 {remainder} 份每份 {chars_per_part + 1} 字符，"
+                     f"最后一份 {chars_per_part} 字符")
+
+    # 开始切块
+    with open(input_path, "r", encoding=input_encoding, errors="replace") as f:
+        for part_no in range(1, total_parts + 1):
+            # 计算当前份大小
+            current_chunk_size = chars_per_part + (1 if part_no <= remainder else 0)
+            chunk = f.read(current_chunk_size)
+            if not chunk:
+                break
+            out_path = os.path.join(output_dir, f"{base_name}_part{part_no}{ext}")
+            with open(out_path, "w", encoding=output_encoding, errors="replace") as out_f:
+                out_f.write(chunk)
+            if log_callback:
+                log_callback(f"已创建: {os.path.basename(out_path)} ({len(chunk)} 字符)")
+            if progress_callback:
+                progress = (part_no / total_parts) * 100
+                progress_callback(progress)
+
+    return total_parts

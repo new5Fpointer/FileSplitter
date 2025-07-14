@@ -1,4 +1,4 @@
-import os
+import os,sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import platform
@@ -19,6 +19,15 @@ class FileSplitterApp:
         self.root.geometry("750x600")
         self.root.resizable(True, True)
 
+        #替换Tkinter默认窗口图标
+        if getattr(sys, 'frozen', False):
+            # 打包后 exe 运行时
+            icon_path = os.path.join(sys._MEIPASS, "icon.ico")
+        else:
+            # 源码运行时
+            icon_path = os.path.join(os.path.dirname(__file__), "..", "icon.ico")
+        self.root.iconbitmap(icon_path)
+
         self.config = ConfigManager()
         self.style_manager = StyleManager(root)
 
@@ -31,12 +40,19 @@ class FileSplitterApp:
         self.log_widget.log("欢迎使用文件分割工具")
         self.log_widget.log("请选择输入文件和输出目录")
 
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)#临死前的挣扎(保存配置)
+
     # ---------- 事件绑定 ----------
     def bind_setting_changes(self):
         self.chars_entry.entry.bind("<FocusOut>", self.save_settings)
         self.encoding_combo.combo.bind("<<ComboboxSelected>>", self.save_settings)
         self.output_encoding_combo.combo.bind("<<ComboboxSelected>>", self.save_settings)
         self.line_mode_combo.combo.bind("<<ComboboxSelected>>", self.save_settings)
+
+    def on_closing(self):
+        """窗口关闭时保存设置再退出"""
+        self.save_settings()          # 把当前输入写进配置文件
+        self.root.destroy()           # 真正关闭窗口
 
     # ---------- 应用保存的设置 ----------
     def apply_saved_font_settings(self):
@@ -56,17 +72,23 @@ class FileSplitterApp:
         if mode == "按行分割":
             val = self.config.get_setting('Settings', 'lines_per_file', '1000')
             self.chars_entry.set_value(val)
-            self.chars_entry.set_label_text("每个文件的行数:")
-        else:
+            self.chars_entry.set_label_text("每份文件的字符数/行数/份数:")
+
+        elif mode == "份数分割":
+            val = self.config.get_setting('Settings', 'parts_per_file', '4')
+            self.chars_entry.set_value(val)
+            self.chars_entry.set_label_text("每份文件的字符数/行数/份数:")
+
+        else:   # 按字符 / 严格行 / 灵活行 都走这里
             val = self.config.get_setting('Settings', 'chars_per_file', '1000')
             self.chars_entry.set_value(val)
-            self.chars_entry.set_label_text("每个文件的字符数:")
-        # 恢复编码下拉框
+            self.chars_entry.set_label_text("每份文件的字符数/行数/份数:")
+
+        # 3. 恢复编码下拉框
         in_enc  = self.config.get_setting('Settings', 'input_encoding',  'auto')
         out_enc = self.config.get_setting('Settings', 'output_encoding', '同输入编码')
         self.encoding_combo.set_value(in_enc)
         self.output_encoding_combo.set_value(out_enc)
-
     # ---------- 保存设置 ----------
     def save_settings(self, event=None):
         mode = self.line_mode_combo.get_value()
@@ -74,6 +96,8 @@ class FileSplitterApp:
 
         if mode == "按行分割":
             self.config.set_setting('Settings', 'lines_per_file', self.chars_entry.get_value())
+        elif mode == "份数分割":
+            self.config.set_setting('Settings', 'parts_per_file', self.chars_entry.get_value())
         else:
             self.config.set_setting('Settings', 'chars_per_file', self.chars_entry.get_value())
 
@@ -134,7 +158,7 @@ class FileSplitterApp:
         self.output_entry.grid(row=2, column=0, columnspan=3, sticky="ew", pady=5)
 
         self.chars_entry = LabelledEntry(
-            self.main_frame, "每个文件的字符数:",
+            self.main_frame, "每个文件的字符数/行数/份数:",
             default_value="1000", entry_width=15)
         self.chars_entry.grid(row=3, column=0, columnspan=3, sticky="w", pady=5)
 
@@ -142,10 +166,9 @@ class FileSplitterApp:
         split_frame.grid(row=4, column=0, columnspan=3, sticky="ew", pady=5)
         ttk.Label(split_frame, text="分割方式:", style="Label.TLabel").pack(side=tk.LEFT, padx=(0, 10))
         self.line_mode_combo = LabelledCombobox(
-            split_frame, "", values=["按字符分割", "按行分割", "严格行分割", "灵活行分割"],
+            split_frame, "", values=["按字符分割", "按行分割", "严格行分割", "灵活行分割", "份数分割"],
             default_value="按字符分割", width=15)
         self.line_mode_combo.pack(side=tk.LEFT)
-        self.line_mode_combo.combo.bind("<<ComboboxSelected>>", self.on_split_mode_changed)
 
         enc_frame = ttk.Frame(self.main_frame)
         enc_frame.grid(row=5, column=0, columnspan=3, sticky="ew", pady=5)
@@ -185,31 +208,7 @@ class FileSplitterApp:
         self.log_widget.grid(row=9, column=0, columnspan=3, sticky="nsew")
         self.main_frame.columnconfigure(0, weight=1)
         self.main_frame.rowconfigure(9, weight=1)
-        self.line_mode_combo.combo.bind("<<ComboboxSelected>>", self.on_split_mode_changed)
         self.bind_setting_changes()
-
-    def on_split_mode_changed(self, event=None):
-        """下拉框切换时即时更新界面"""
-        mode = self.line_mode_combo.get_value()
-        if mode == "按行分割":
-            self.chars_entry.set_label_text("每个文件的行数:")
-            val = self.config.get_setting('Settings', 'lines_per_file', '1000')
-        else:
-            self.chars_entry.set_label_text("每个文件的字符数:")
-            val = self.config.get_setting('Settings', 'chars_per_file', '1000')
-        self.chars_entry.set_value(val)
-        self.root.update_idletasks()   # 立即刷新
-
-    # ---------- 下拉框切换 ----------
-    def on_split_mode_changed(self, event=None):
-        mode = self.line_mode_combo.get_value()
-        if mode == "按行分割":
-            self.chars_entry.set_label_text("每个文件的行数:")
-            val = self.config.get_setting('Settings', 'lines_per_file', '1000')
-        else:
-            self.chars_entry.set_label_text("每个文件的字符数:")
-            val = self.config.get_setting('Settings', 'chars_per_file', '1000')
-        self.chars_entry.set_value(val)
 
     # ---------- 字体设置 ----------
     def open_font_settings(self):
@@ -255,7 +254,24 @@ class FileSplitterApp:
                 target=self.run_split_by_lines,
                 args=(input_path, output_dir, lines, in_enc, out_enc),
                 daemon=True).start()
+        elif mode == "份数分割":
+            try:
+                parts = int(self.chars_entry.get_value())
+                if parts <= 0:
+                    raise ValueError
+            except ValueError:
+                messagebox.showerror("错误", "请输入有效的份数")
+                return
 
+            self.open_output_btn.config(state=tk.DISABLED)
+            self.start_btn.config(state=tk.DISABLED)
+            self.progress_var.set(0)
+            self.status_var.set("开始按份数分割...")
+
+            threading.Thread(
+                target=self.run_split_by_parts,
+                args=(input_path, output_dir, parts, in_enc, out_enc),
+                daemon=True).start()
         else:
             try:
                 chars = int(self.chars_entry.get_value())
@@ -317,3 +333,14 @@ class FileSplitterApp:
         self.status_var.set("处理出错")
         messagebox.showerror("错误", str(e))
         self.start_btn.config(state=tk.NORMAL)
+
+    def run_split_by_parts(self, *args):
+        try:
+            from core.splitter import split_file_by_parts
+            num = split_file_by_parts(
+                *args,
+                progress_callback=self.update_progress,
+                log_callback=self.log_in_ui_thread)
+            self.root.after(0, self.on_split_completed, num)
+        except Exception as e:
+            self.root.after(0, self.on_split_error, e)

@@ -44,6 +44,7 @@ class ConfigManager:
                 'font_weight': 'normal',
                 'font_slant': 'roman',
                 'split_mode': '按字符分割',
+                'arts_per_file': '4'
             }
             self.save_config()
 
