@@ -26,12 +26,10 @@ class FileSplitterApp:
         self.main_frame.pack(fill=tk.BOTH, expand=True)
 
         self.create_widgets()
-        self.apply_saved_font_settings()
-        self.apply_saved_settings()
-
+        self.apply_saved_settings()          # 1. 先恢复下拉框和数值
+        self.apply_saved_font_settings()     # 2. 再恢复字体
         self.log_widget.log("欢迎使用文件分割工具")
         self.log_widget.log("请选择输入文件和输出目录")
-        self.bind_setting_changes()
 
     # ---------- 事件绑定 ----------
     def bind_setting_changes(self):
@@ -50,41 +48,42 @@ class FileSplitterApp:
         self.log_widget.update_font(font_family, font_size, font_weight, font_slant)
 
     def apply_saved_settings(self):
-        chars = self.config.get_setting('Settings', 'chars_per_file', '1000')
-        in_enc = self.config.get_setting('Settings', 'input_encoding', 'utf-8')
-        out_enc = self.config.get_setting('Settings', 'output_encoding', '同输入编码')
-        split_flag = self.config.get_setting('Settings', 'split_by_line', 'False')
-        line_mode = self.config.get_setting('Settings', 'line_split_mode', 'strict')
+        # 1. 恢复分割模式下拉框
+        mode = self.config.get_setting('Settings', 'split_mode', '按字符分割')
+        self.line_mode_combo.set_value(mode)
 
-        self.chars_entry.set_value(chars)
+        # 2. 根据模式恢复数值
+        if mode == "按行分割":
+            val = self.config.get_setting('Settings', 'lines_per_file', '1000')
+            self.chars_entry.set_value(val)
+            self.chars_entry.set_label_text("每个文件的行数:")
+        else:
+            val = self.config.get_setting('Settings', 'chars_per_file', '1000')
+            self.chars_entry.set_value(val)
+            self.chars_entry.set_label_text("每个文件的字符数:")
+        # 恢复编码下拉框
+        in_enc  = self.config.get_setting('Settings', 'input_encoding',  'auto')
+        out_enc = self.config.get_setting('Settings', 'output_encoding', '同输入编码')
         self.encoding_combo.set_value(in_enc)
         self.output_encoding_combo.set_value(out_enc)
 
-        if split_flag == 'False':
-            self.line_mode_combo.set_value("按字符分割")
-        elif line_mode == 'strict':
-            self.line_mode_combo.set_value("严格行分割")
-        else:
-            self.line_mode_combo.set_value("灵活行分割")
-
     # ---------- 保存设置 ----------
     def save_settings(self, event=None):
-        chars = self.chars_entry.get_value()
-        in_enc = self.encoding_combo.get_value()
-        out_enc = self.output_encoding_combo.get_value()
-
-        self.config.set_setting('Settings', 'chars_per_file', chars)
-        self.config.set_setting('Settings', 'input_encoding', in_enc)
-        self.config.set_setting('Settings', 'output_encoding', out_enc)
-
         mode = self.line_mode_combo.get_value()
-        self.config.set_setting('Settings', 'split_by_line', str(mode != "按字符分割"))
-        if mode != "按字符分割":
-            self.config.set_setting('Settings', 'line_split_mode',
-                                    'strict' if mode == "严格行分割" else 'flexible')
+        self.config.set_setting('Settings', 'split_mode', mode)
+
+        if mode == "按行分割":
+            self.config.set_setting('Settings', 'lines_per_file', self.chars_entry.get_value())
+        else:
+            self.config.set_setting('Settings', 'chars_per_file', self.chars_entry.get_value())
+
+        # 补上下面两行
+        self.config.set_setting('Settings', 'input_encoding',  self.encoding_combo.get_value())
+        self.config.set_setting('Settings', 'output_encoding', self.output_encoding_combo.get_value())
+
         self.log_widget.log("设置已自动保存")
 
-    # ---------- 其他方法 ----------
+    # ---------- 浏览/打开 ----------
     def browse_input_file(self):
         path = filedialog.askopenfilename(
             title="选择要分割的文件",
@@ -121,37 +120,33 @@ class FileSplitterApp:
 
     # ---------- 创建界面 ----------
     def create_widgets(self):
-        # 标题
         ttk.Label(self.main_frame, text="文件分割工具", style="Title.TLabel") \
             .grid(row=0, column=0, columnspan=3, pady=(0, 15))
 
-        # 输入文件
         self.input_entry = LabelledEntry(
             self.main_frame, "输入文件:",
             browse_cmd=self.browse_input_file, entry_width=50)
         self.input_entry.grid(row=1, column=0, columnspan=3, sticky="ew", pady=5)
 
-        # 输出目录
         self.output_entry = LabelledEntry(
             self.main_frame, "输出目录:",
             browse_cmd=self.browse_output_dir, entry_width=50)
         self.output_entry.grid(row=2, column=0, columnspan=3, sticky="ew", pady=5)
 
-        # 字符数
         self.chars_entry = LabelledEntry(
-            self.main_frame, "每个文件的字符数:", default_value="1000", entry_width=15)
+            self.main_frame, "每个文件的字符数:",
+            default_value="1000", entry_width=15)
         self.chars_entry.grid(row=3, column=0, columnspan=3, sticky="w", pady=5)
 
-        # 分割方式
         split_frame = ttk.Frame(self.main_frame)
         split_frame.grid(row=4, column=0, columnspan=3, sticky="ew", pady=5)
         ttk.Label(split_frame, text="分割方式:", style="Label.TLabel").pack(side=tk.LEFT, padx=(0, 10))
         self.line_mode_combo = LabelledCombobox(
-            split_frame, "", values=["按字符分割", "严格行分割", "灵活行分割"],
+            split_frame, "", values=["按字符分割", "按行分割", "严格行分割", "灵活行分割"],
             default_value="按字符分割", width=15)
         self.line_mode_combo.pack(side=tk.LEFT)
+        self.line_mode_combo.combo.bind("<<ComboboxSelected>>", self.on_split_mode_changed)
 
-        # 编码设置
         enc_frame = ttk.Frame(self.main_frame)
         enc_frame.grid(row=5, column=0, columnspan=3, sticky="ew", pady=5)
         ttk.Label(enc_frame, text="编码设置:", style="Label.TLabel") \
@@ -167,18 +162,15 @@ class FileSplitterApp:
             default_value="同输入编码", width=10)
         self.output_encoding_combo.pack(side=tk.LEFT)
 
-        # 进度条
         self.progress_var = tk.DoubleVar()
         ttk.Progressbar(self.main_frame, variable=self.progress_var, maximum=100,
                         style="Progressbar.Horizontal.TProgressbar") \
             .grid(row=6, column=0, columnspan=3, sticky="ew", pady=15)
 
-        # 状态
         self.status_var = tk.StringVar(value="准备就绪")
         ttk.Label(self.main_frame, textvariable=self.status_var, style="Status.TLabel") \
             .grid(row=7, column=0, columnspan=3, sticky="w")
 
-        # 按钮
         btn = ttk.Frame(self.main_frame)
         btn.grid(row=8, column=0, columnspan=3, pady=15)
         self.start_btn = ttk.Button(btn, text="开始分割", command=self.start_split)
@@ -189,31 +181,50 @@ class FileSplitterApp:
         self.open_output_btn.pack(side=tk.LEFT, padx=10)
         ttk.Button(btn, text="退出", command=self.root.quit).pack(side=tk.RIGHT, padx=10)
 
-        # 日志
         self.log_widget = LogWidget(self.main_frame)
         self.log_widget.grid(row=9, column=0, columnspan=3, sticky="nsew")
         self.main_frame.columnconfigure(0, weight=1)
         self.main_frame.rowconfigure(9, weight=1)
+        self.line_mode_combo.combo.bind("<<ComboboxSelected>>", self.on_split_mode_changed)
+        self.bind_setting_changes()
 
+    def on_split_mode_changed(self, event=None):
+        """下拉框切换时即时更新界面"""
+        mode = self.line_mode_combo.get_value()
+        if mode == "按行分割":
+            self.chars_entry.set_label_text("每个文件的行数:")
+            val = self.config.get_setting('Settings', 'lines_per_file', '1000')
+        else:
+            self.chars_entry.set_label_text("每个文件的字符数:")
+            val = self.config.get_setting('Settings', 'chars_per_file', '1000')
+        self.chars_entry.set_value(val)
+        self.root.update_idletasks()   # 立即刷新
+
+    # ---------- 下拉框切换 ----------
+    def on_split_mode_changed(self, event=None):
+        mode = self.line_mode_combo.get_value()
+        if mode == "按行分割":
+            self.chars_entry.set_label_text("每个文件的行数:")
+            val = self.config.get_setting('Settings', 'lines_per_file', '1000')
+        else:
+            self.chars_entry.set_label_text("每个文件的字符数:")
+            val = self.config.get_setting('Settings', 'chars_per_file', '1000')
+        self.chars_entry.set_value(val)
+
+    # ---------- 字体设置 ----------
     def open_font_settings(self):
         FontSettingsDialog(
             self.root, self.style_manager, self.log_widget.log,
             self.log_widget.update_font, on_font_applied=self.save_font_settings)
 
     def save_font_settings(self, font_family, font_size, font_weight, font_slant):
-        """保存字体设置到配置文件"""
         self.config.set_setting('Settings', 'font_family', font_family)
         self.config.set_setting('Settings', 'font_size', str(font_size))
         self.config.set_setting('Settings', 'font_weight', font_weight)
         self.config.set_setting('Settings', 'font_slant', font_slant)
+        self.log_widget.log(f"字体设置已保存: {font_family}, {font_size}pt")
 
-        font_info = f"{font_family}, {font_size}pt"
-        if font_weight == "bold":
-            font_info += " 加粗"
-        if font_slant == "italic":
-            font_info += " 斜体"
-        self.log_widget.log(f"字体设置已保存: {font_info}")
-
+    # ---------- 开始分割 ----------
     def start_split(self):
         self.save_settings()
         input_path = self.input_entry.get_value()
@@ -221,35 +232,68 @@ class FileSplitterApp:
         if not input_path or not output_dir:
             messagebox.showerror("错误", "请选择输入文件和输出目录")
             return
-        try:
-            chars = int(self.chars_entry.get_value())
-            if chars <= 0:
-                raise ValueError
-        except ValueError:
-            messagebox.showerror("错误", "请输入有效的字符数")
-            return
 
+        mode = self.line_mode_combo.get_value()
         in_enc  = self.encoding_combo.get_value()
         out_enc = self.output_encoding_combo.get_value()
 
-        mode = self.line_mode_combo.get_value()
-        split_by_line = mode != "按字符分割"
-        line_mode = 'strict' if mode == "严格行分割" else 'flexible'
+        if mode == "按行分割":
+            try:
+                lines = int(self.chars_entry.get_value())
+                if lines <= 0:
+                    raise ValueError
+            except ValueError:
+                messagebox.showerror("错误", "请输入有效的行数")
+                return
 
-        self.open_output_btn.config(state=tk.DISABLED)
-        self.start_btn.config(state=tk.DISABLED)
-        self.progress_var.set(0)
-        self.status_var.set("开始分割...")
+            self.open_output_btn.config(state=tk.DISABLED)
+            self.start_btn.config(state=tk.DISABLED)
+            self.progress_var.set(0)
+            self.status_var.set("开始按行分割...")
 
-        threading.Thread(
-            target=self.run_split_in_thread,
-            args=(input_path, output_dir, chars, in_enc, out_enc, split_by_line, line_mode),
-            daemon=True).start()
+            threading.Thread(
+                target=self.run_split_by_lines,
+                args=(input_path, output_dir, lines, in_enc, out_enc),
+                daemon=True).start()
+
+        else:
+            try:
+                chars = int(self.chars_entry.get_value())
+                if chars <= 0:
+                    raise ValueError
+            except ValueError:
+                messagebox.showerror("错误", "请输入有效的字符数")
+                return
+
+            split_by_line = (mode != "按字符分割")
+            line_mode = 'strict' if mode == "严格行分割" else 'flexible'
+
+            self.open_output_btn.config(state=tk.DISABLED)
+            self.start_btn.config(state=tk.DISABLED)
+            self.progress_var.set(0)
+            self.status_var.set("开始分割...")
+
+            threading.Thread(
+                target=self.run_split_in_thread,
+                args=(input_path, output_dir, chars, in_enc, out_enc,
+                      split_by_line, line_mode),
+                daemon=True).start()
 
     def run_split_in_thread(self, *args):
         try:
             num = split_file(*args, progress_callback=self.update_progress,
                              log_callback=self.log_in_ui_thread)
+            self.root.after(0, self.on_split_completed, num)
+        except Exception as e:
+            self.root.after(0, self.on_split_error, e)
+
+    def run_split_by_lines(self, *args):
+        try:
+            from core.splitter import split_file_by_lines
+            num = split_file_by_lines(
+                *args,
+                progress_callback=self.update_progress,
+                log_callback=self.log_in_ui_thread)
             self.root.after(0, self.on_split_completed, num)
         except Exception as e:
             self.root.after(0, self.on_split_error, e)

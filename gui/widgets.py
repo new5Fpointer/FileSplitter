@@ -36,6 +36,10 @@ class LabelledEntry(ttk.Frame):
     def set_value(self, value):
         """设置输入框的值"""
         self.entry_var.set(value)
+    
+    def set_label_text(self, text):
+        """动态修改左侧标签文字"""
+        self.label.config(text=text)
 
 class LabelledCombobox(ttk.Frame):
     """带标签的下拉框组件"""

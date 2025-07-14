@@ -36,14 +36,14 @@ class ConfigManager:
             # 创建默认配置
             self.config['Settings'] = {
                 'chars_per_file': '1000',
+                'lines_per_file': '1000',
                 'input_encoding': 'auto',
                 'output_encoding': '同输入编码',
                 'font_family': '微软雅黑',
                 'font_size': '10',
                 'font_weight': 'normal',
                 'font_slant': 'roman',
-                'split_by_line': 'False',
-                'line_split_mode': 'strict'
+                'split_mode': '按字符分割',
             }
             self.save_config()
 

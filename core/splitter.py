@@ -3,256 +3,186 @@ import math
 import chardet
 import locale
 
+
 def calculate_total_chars(file_path, encoding):
     total_chars = 0
     with open(file_path, "r", encoding=encoding, errors="replace") as f:
         while True:
-            chunk = f.read(4096)  # 4KB块
+            chunk = f.read(4096)
             if not chunk:
                 break
             total_chars += len(chunk)
     return total_chars
 
+
 def split_file(input_path, output_dir, chars_per_file, input_encoding, output_encoding,
-              split_by_line=False, line_split_mode="strict", progress_callback=None, log_callback=None):
+               split_by_line=False, line_split_mode="strict",
+               progress_callback=None, log_callback=None):
     """
-    分割文件
-    :param input_path: 输入文件路径
-    :param output_dir: 输出目录
-    :param chars_per_file: 每个分割文件的字符数
-    :param input_encoding: 输入文件编码
-    :param output_encoding: 输出文件编码
-    :param split_by_line: 是否按行分割
-    :param line_split_mode: 行分割模式 ("strict" 或 "flexible")
-    :param progress_callback: 进度回调函数
-    :param log_callback: 日志回调函数
+    按字符/行（chars_per_file 或 lines_per_file）分割文件
+    其余参数同 README
     """
-    # 验证文件是否存在
     if not os.path.isfile(input_path):
         raise FileNotFoundError(f"文件不存在: {input_path}")
-    
-    # 创建输出目录
+
     os.makedirs(output_dir, exist_ok=True)
-    
-    # 获取文件信息
     filename = os.path.basename(input_path)
     base_name, ext = os.path.splitext(filename)
-    
-    # 如果是自动检测输入编码
+
+    # 编码检测
     if input_encoding == "auto":
         with open(input_path, "rb") as f:
-            raw_data = f.read(4096)  # 读取前4KB检测
-            result = chardet.detect(raw_data)
-            input_encoding = result['encoding'] or 'utf-8'
+            raw = f.read(4096)
+            input_encoding = chardet.detect(raw)['encoding'] or 'utf-8'
         if log_callback:
             log_callback(f"自动检测到输入编码: {input_encoding}")
-    
-    # 确定输出编码
+
     if output_encoding == "同输入编码":
         output_encoding = input_encoding
-        if log_callback:
-            log_callback(f"输出编码使用输入编码: {input_encoding}")
     elif output_encoding == "ansi":
-        # 获取系统ANSI编码
         output_encoding = locale.getpreferredencoding(do_setlocale=False)
-        if log_callback:
-            log_callback(f"系统ANSI编码: {output_encoding}")
-    
-    # 计算总字符数
-    if log_callback:
-        log_callback("正在计算文件总字符数...")
-    
+
     total_chars = calculate_total_chars(input_path, input_encoding)
-    
+    num_files = math.ceil(total_chars / chars_per_file)
+
     if log_callback:
         log_callback(f"文件总字符数: {total_chars}")
-    
-    # 计算需要分割的文件数量
-    num_files = math.ceil(total_chars / chars_per_file)
-    
-    if log_callback:
         log_callback(f"将分割为 {num_files} 个文件")
-        log_callback("开始分割文件...")
-        log_callback(f"输入编码: {input_encoding}, 输出编码: {output_encoding}")
-        log_callback(f"分割方式: {'按行分割' if split_by_line else '按字符分割'}")
-        if split_by_line:
-            log_callback(f"行分割模式: {'严格行分割' if line_split_mode == 'strict' else '灵活行分割'}")
-    
-    # 实际分割文件
+
     with open(input_path, "r", encoding=input_encoding, errors="replace") as f:
         current_file = 1
         current_chars = 0
         current_chunk = []
-        
+
         for line in f:
             line_length = len(line)
-            
+
             if split_by_line:
                 if line_split_mode == "flexible":
-                    # 灵活行分割模式 - 优先保证行完整
                     if current_chars + line_length > chars_per_file:
-                        # 即使超出限制也加入当前行
-                        current_chunk.append(line)
-                        current_chars += line_length
-                        
-                        # 写入当前块到文件
                         chunk = ''.join(current_chunk)
-                        output_path = os.path.join(
-                            output_dir, 
-                            f"{base_name}_part{current_file}{ext}"
-                        )
-                        
-                        try:
-                            with open(output_path, "w", encoding=output_encoding, errors="replace") as out_f:
-                                out_f.write(chunk)
-                            if log_callback:
-                                log_callback(f"已创建分割文件: {os.path.basename(output_path)} ({len(chunk)} 字符)")
-                        except Exception as e:
-                            if log_callback:
-                                log_callback(f"保存文件时出错: {str(e)}")
-                        
-                        # 更新进度
+                        out_path = os.path.join(output_dir, f"{base_name}_part{current_file}{ext}")
+                        with open(out_path, "w", encoding=output_encoding, errors="replace") as out_f:
+                            out_f.write(chunk)
+                        if log_callback:
+                            log_callback(f"已创建: {os.path.basename(out_path)} ({len(chunk)} 字符)")
                         if progress_callback:
                             progress = (current_file / num_files) * 100
                             progress_callback(progress)
-                        
-                        # 重置当前块
                         current_file += 1
                         current_chars = 0
                         current_chunk = []
-                    else:
-                        # 当前行加入不会超出限制，正常添加
-                        current_chunk.append(line)
-                        current_chars += line_length
-                
-                else:  # 严格行分割模式
+                    current_chunk.append(line)
+                    current_chars += line_length
+                else:  # strict
                     if current_chars + line_length > chars_per_file:
-                        # 当前行会超出限制，先保存之前的块
                         if current_chunk:
                             chunk = ''.join(current_chunk)
-                            output_path = os.path.join(
-                                output_dir, 
-                                f"{base_name}_part{current_file}{ext}"
-                            )
-                            
-                            try:
-                                with open(output_path, "w", encoding=output_encoding, errors="replace") as out_f:
-                                    out_f.write(chunk)
-                                if log_callback:
-                                    log_callback(f"已创建分割文件: {os.path.basename(output_path)} ({len(chunk)} 字符)")
-                            except Exception as e:
-                                if log_callback:
-                                    log_callback(f"保存文件时出错: {str(e)}")
-                            
-                            # 更新进度
+                            out_path = os.path.join(output_dir, f"{base_name}_part{current_file}{ext}")
+                            with open(out_path, "w", encoding=output_encoding, errors="replace") as out_f:
+                                out_f.write(chunk)
+                            if log_callback:
+                                log_callback(f"已创建: {os.path.basename(out_path)} ({len(chunk)} 字符)")
                             if progress_callback:
                                 progress = (current_file / num_files) * 100
                                 progress_callback(progress)
-                            
-                            # 重置当前块
                             current_file += 1
-                            current_chars = 0
-                            current_chunk = []
-                        
-                        # 将当前行放入新块
-                        current_chunk.append(line)
+                        current_chunk = [line]
                         current_chars = line_length
                     else:
-                        # 当前行加入不会超出限制，正常添加
                         current_chunk.append(line)
                         current_chars += line_length
-            
             else:
-                # 按字符分割模式
+                # 按字符分割
                 if current_chars + line_length > chars_per_file:
-                    # 找到可以拆分的位置
-                    available_space = chars_per_file - current_chars
-                    if available_space > 0:
-                        # 添加部分字符到当前块
-                        current_chunk.append(line[:available_space])
-                        current_chars += available_space
-                        
-                        # 写入当前块到文件
-                        chunk = ''.join(current_chunk)
-                        output_path = os.path.join(
-                            output_dir, 
-                            f"{base_name}_part{current_file}{ext}"
-                        )
-                        
-                        try:
-                            with open(output_path, "w", encoding=output_encoding, errors="replace") as out_f:
-                                out_f.write(chunk)
-                            if log_callback:
-                                log_callback(f"已创建分割文件: {os.path.basename(output_path)} ({len(chunk)} 字符)")
-                        except Exception as e:
-                            if log_callback:
-                                log_callback(f"保存文件时出错: {str(e)}")
-                        
-                        # 更新进度
-                        if progress_callback:
-                            progress = (current_file / num_files) * 100
-                            progress_callback(progress)
-                        
-                        # 重置当前块
-                        current_file += 1
-                        current_chars = 0
-                        current_chunk = []
-                        
-                        # 剩余部分放到下一个块
-                        current_chunk.append(line[available_space:])
-                        current_chars += line_length - available_space
-                    else:
-                        # 当前行无法放入当前块，直接放到下一个块
-                        if current_chunk:
-                            chunk = ''.join(current_chunk)
-                            output_path = os.path.join(
-                                output_dir, 
-                                f"{base_name}_part{current_file}{ext}"
-                            )
-                            
-                            try:
-                                with open(output_path, "w", encoding=output_encoding, errors="replace") as out_f:
-                                    out_f.write(chunk)
-                                if log_callback:
-                                    log_callback(f"已创建分割文件: {os.path.basename(output_path)} ({len(chunk)} 字符)")
-                            except Exception as e:
-                                if log_callback:
-                                    log_callback(f"保存文件时出错: {str(e)}")
-                            
-                            # 更新进度
-                            if progress_callback:
-                                progress = (current_file / num_files) * 100
-                                progress_callback(progress)
-                            
-                            current_file += 1
-                            current_chars = 0
-                            current_chunk = []
-                        
-                        current_chunk.append(line)
-                        current_chars += line_length
+                    available = chars_per_file - current_chars
+                    if available > 0:
+                        current_chunk.append(line[:available])
+                    chunk = ''.join(current_chunk)
+                    out_path = os.path.join(output_dir, f"{base_name}_part{current_file}{ext}")
+                    with open(out_path, "w", encoding=output_encoding, errors="replace") as out_f:
+                        out_f.write(chunk)
+                    if log_callback:
+                        log_callback(f"已创建: {os.path.basename(out_path)} ({len(chunk)} 字符)")
+                    if progress_callback:
+                        progress = (current_file / num_files) * 100
+                        progress_callback(progress)
+                    current_file += 1
+                    current_chunk = [line[available:]] if available < line_length else []
+                    current_chars = len(current_chunk[0]) if current_chunk else 0
                 else:
                     current_chunk.append(line)
                     current_chars += line_length
-        
-        # 写入最后一个块
+
         if current_chunk:
             chunk = ''.join(current_chunk)
-            output_path = os.path.join(
-                output_dir, 
-                f"{base_name}_part{current_file}{ext}"
-            )
-            try:
-                with open(output_path, "w", encoding=output_encoding, errors="replace") as out_f:
-                    out_f.write(chunk)
-                if log_callback:
-                    log_callback(f"已创建分割文件: {os.path.basename(output_path)} ({len(chunk)} 字符)")
-            except Exception as e:
-                if log_callback:
-                    log_callback(f"保存文件时出错: {str(e)}")
-            
-            # 更新进度
+            out_path = os.path.join(output_dir, f"{base_name}_part{current_file}{ext}")
+            with open(out_path, "w", encoding=output_encoding, errors="replace") as out_f:
+                out_f.write(chunk)
+            if log_callback:
+                log_callback(f"已创建: {os.path.basename(out_path)} ({len(chunk)} 字符)")
             if progress_callback:
                 progress = (current_file / num_files) * 100
                 progress_callback(progress)
-    
+
     return current_file
+
+
+def split_file_by_lines(input_path, output_dir, lines_per_file,
+                        input_encoding, output_encoding,
+                        progress_callback=None, log_callback=None):
+    """纯粹按行数切分"""
+    if not os.path.isfile(input_path):
+        raise FileNotFoundError(f"文件不存在: {input_path}")
+
+    os.makedirs(output_dir, exist_ok=True)
+    filename = os.path.basename(input_path)
+    base_name, ext = os.path.splitext(filename)
+
+    # 编码
+    if input_encoding == "auto":
+        with open(input_path, "rb") as f:
+            raw = f.read(4096)
+            input_encoding = chardet.detect(raw)['encoding'] or 'utf-8'
+        if log_callback:
+            log_callback(f"自动检测到输入编码: {input_encoding}")
+
+    if output_encoding == "同输入编码":
+        output_encoding = input_encoding
+    elif output_encoding == "ansi":
+        output_encoding = locale.getpreferredencoding(do_setlocale=False)
+
+    # 总行数
+    with open(input_path, 'r', encoding=input_encoding, errors='replace') as f:
+        total_lines = sum(1 for _ in f)
+    if log_callback:
+        log_callback(f"文件总行数: {total_lines}")
+
+    total_files = (total_lines + lines_per_file - 1) // lines_per_file
+    if log_callback:
+        log_callback(f"将分割为 {total_files} 个文件")
+
+    with open(input_path, 'r', encoding=input_encoding, errors='replace') as in_f:
+        file_no = 1
+        written_lines = 0
+        out_f = None
+        for line_no, line in enumerate(in_f, 1):
+            if written_lines % lines_per_file == 0:
+                if out_f:
+                    out_f.close()
+                out_path = os.path.join(output_dir, f"{base_name}_part{file_no}{ext}")
+                out_f = open(out_path, 'w', encoding=output_encoding, errors='replace')
+                file_no += 1
+                if log_callback:
+                    log_callback(f"创建: {os.path.basename(out_path)}")
+
+            out_f.write(line)
+            written_lines += 1
+
+            if progress_callback:
+                progress = min(100, int(line_no * 100 / total_lines))
+                progress_callback(progress)
+
+        if out_f:
+            out_f.close()
+    return file_no - 1
