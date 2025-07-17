@@ -2,7 +2,7 @@ import os
 import math
 import chardet
 import locale
-
+import re
 
 def calculate_total_chars(file_path, encoding):
     total_chars = 0
@@ -18,10 +18,6 @@ def calculate_total_chars(file_path, encoding):
 def split_file(input_path, output_dir, chars_per_file, input_encoding, output_encoding,
                split_by_line=False, line_split_mode="strict",
                progress_callback=None, log_callback=None):
-    """
-    按字符/行（chars_per_file 或 lines_per_file）分割文件
-    其余参数同 README
-    """
     if not os.path.isfile(input_path):
         raise FileNotFoundError(f"文件不存在: {input_path}")
 
@@ -60,20 +56,25 @@ def split_file(input_path, output_dir, chars_per_file, input_encoding, output_en
             if split_by_line:
                 if line_split_mode == "flexible":
                     if current_chars + line_length > chars_per_file:
-                        chunk = ''.join(current_chunk)
-                        out_path = os.path.join(output_dir, f"{base_name}_part{current_file}{ext}")
-                        with open(out_path, "w", encoding=output_encoding, errors="replace") as out_f:
-                            out_f.write(chunk)
-                        if log_callback:
-                            log_callback(f"已创建: {os.path.basename(out_path)} ({len(chunk)} 字符)")
-                        if progress_callback:
-                            progress = (current_file / num_files) * 100
-                            progress_callback(progress)
-                        current_file += 1
-                        current_chars = 0
-                        current_chunk = []
-                    current_chunk.append(line)
-                    current_chars += line_length
+                        # 如果当前块非空，先写入
+                        if current_chunk:
+                            chunk = ''.join(current_chunk)
+                            out_path = os.path.join(output_dir, f"{base_name}_part{current_file}{ext}")
+                            with open(out_path, "w", encoding=output_encoding, errors="replace") as out_f:
+                                out_f.write(chunk)
+                            if log_callback:
+                                log_callback(f"已创建: {os.path.basename(out_path)} ({len(chunk)} 字符)")
+                            if progress_callback:
+                                progress = (current_file / num_files) * 100
+                                progress_callback(progress)
+                            current_file += 1
+
+                        # 保留当前行作为下一份文件的起始
+                        current_chunk = [line]
+                        current_chars = line_length
+                    else:
+                        current_chunk.append(line)
+                        current_chars += line_length
                 else:  # strict
                     if current_chars + line_length > chars_per_file:
                         if current_chunk:
@@ -243,3 +244,102 @@ def split_file_by_parts(input_path, output_dir, total_parts,
                 progress_callback(progress)
 
     return total_parts
+
+def split_file_by_regex(input_path, output_dir, regex_pattern, 
+                        input_encoding, output_encoding,
+                        include_delimiter=False,  # 是否包含分隔符在结果中
+                        progress_callback=None, log_callback=None):
+    """
+    按正则表达式分割文件
+    :param input_path: 输入文件路径
+    :param output_dir: 输出目录
+    :param regex_pattern: 正则表达式模式
+    :param input_encoding: 输入编码
+    :param output_encoding: 输出编码
+    :param include_delimiter: 是否在分割结果中包含分隔符
+    :param progress_callback: 进度回调函数
+    :param log_callback: 日志回调函数
+    :return: 创建的文件数量
+    """
+    if not os.path.isfile(input_path):
+        raise FileNotFoundError(f"文件不存在: {input_path}")
+    
+    os.makedirs(output_dir, exist_ok=True)
+    filename = os.path.basename(input_path)
+    base_name, ext = os.path.splitext(filename)
+    
+    # 编码处理
+    if input_encoding == "auto":
+        with open(input_path, "rb") as f:
+            raw = f.read(4096)
+            input_encoding = chardet.detect(raw)['encoding'] or 'utf-8'
+        if log_callback:
+            log_callback(f"自动检测到输入编码: {input_encoding}")
+    
+    if output_encoding == "同输入编码":
+        output_encoding = input_encoding
+    elif output_encoding == "ansi":
+        output_encoding = locale.getpreferredencoding(do_setlocale=False)
+    
+    # 编译正则表达式
+    try:
+        pattern = re.compile(regex_pattern)
+    except re.error as e:
+        raise ValueError(f"无效的正则表达式: {e}")
+    
+    file_count = 1
+    current_chunk = []
+    
+    with open(input_path, "r", encoding=input_encoding, errors="replace") as f:
+        if log_callback:
+            log_callback(f"开始按正则表达式分割: {regex_pattern}")
+        
+        for line in f:
+            # 在当前行中查找所有匹配
+            matches = list(pattern.finditer(line))
+            
+            if not matches:
+                current_chunk.append(line)
+                continue
+            
+            last_index = 0
+            for match in matches:
+                start, end = match.span()
+                
+                # 添加匹配前的部分
+                if start > last_index:
+                    current_chunk.append(line[last_index:start])
+                
+                # 处理匹配部分
+                matched_text = line[start:end]
+                
+                # 如果当前块有内容，写入文件
+                if current_chunk:
+                    out_path = os.path.join(output_dir, f"{base_name}_part{file_count}{ext}")
+                    with open(out_path, "w", encoding=output_encoding, errors="replace") as out_f:
+                        out_f.write(''.join(current_chunk))
+                    if log_callback:
+                        log_callback(f"已创建: {os.path.basename(out_path)}")
+                    file_count += 1
+                    current_chunk = []
+                
+                # 是否包含分隔符在结果中
+                if include_delimiter:
+                    current_chunk.append(matched_text)
+                
+                last_index = end
+            
+            # 添加匹配后的剩余部分
+            if last_index < len(line):
+                current_chunk.append(line[last_index:])
+    
+    # 写入最后一块
+    if current_chunk:
+        out_path = os.path.join(output_dir, f"{base_name}_part{file_count}{ext}")
+        with open(out_path, "w", encoding=output_encoding, errors="replace") as out_f:
+            out_f.write(''.join(current_chunk))
+        if log_callback:
+            log_callback(f"已创建: {os.path.basename(out_path)}")
+        file_count += 1
+    
+    return file_count - 1

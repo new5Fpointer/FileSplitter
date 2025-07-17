@@ -1,6 +1,27 @@
 import tkinter as tk
 from tkinter import ttk
 
+class ImmediateCombobox(ttk.Combobox):
+    def __init__(self, parent, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        self.bind("<<ComboboxSelected>>", self.on_select)
+        self.bind("<FocusOut>", self.on_focus_out)
+        self._last_value = self.get()
+    
+    def on_select(self, event):
+        """当选择项时立即处理"""
+        current_value = self.get()
+        if current_value != self._last_value:
+            self._last_value = current_value
+            self.event_generate("<<ImmediateSelect>>")
+    
+    def on_focus_out(self, event):
+        """当失去焦点时检查值是否改变"""
+        current_value = self.get()
+        if current_value != self._last_value:
+            self._last_value = current_value
+            self.event_generate("<<ImmediateSelect>>")
+
 class LabelledEntry(ttk.Frame):
     """带标签的输入框组件"""
     def __init__(self, parent, label_text, default_value="", 
@@ -42,8 +63,7 @@ class LabelledEntry(ttk.Frame):
         self.label.config(text=text)
 
 class LabelledCombobox(ttk.Frame):
-    """带标签的下拉框组件"""
-    def __init__(self, parent, label_text, values, default_value="", width=None, **kwargs):
+    def __init__(self, parent, label_text, values, default_value="", width=None, combobox_class=None, **kwargs):
         super().__init__(parent, **kwargs)
         
         # 创建标签
@@ -52,14 +72,12 @@ class LabelledCombobox(ttk.Frame):
         
         # 创建下拉框
         self.combo_var = tk.StringVar(value=default_value)
-        combo_options = {
-            "textvariable": self.combo_var,
-            "values": values
-        }
-        if width:
-            combo_options["width"] = width
+        combo_options = {"textvariable": self.combo_var, "values": values}
+        if width: combo_options["width"] = width
             
-        self.combo = ttk.Combobox(self, **combo_options)
+        # 使用自定义类或默认类
+        combo_class = combobox_class or ttk.Combobox
+        self.combo = combo_class(self, **combo_options)
         self.combo.pack(side=tk.LEFT)
     
     def get_value(self):

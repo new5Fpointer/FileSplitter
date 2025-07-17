@@ -44,7 +44,9 @@ class ConfigManager:
                 'font_weight': 'normal',
                 'font_slant': 'roman',
                 'split_mode': '按字符分割',
-                'arts_per_file': '4'
+                'arts_per_file': '4',
+                'regex_pattern': '',  # 新增正则表达式模式
+                'include_delimiter': 'False'  # 是否包含分隔符
             }
             self.save_config()
 
