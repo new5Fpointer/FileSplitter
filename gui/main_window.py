@@ -314,10 +314,14 @@ class FileSplitterApp:
             return
 
         mode = self.line_mode_combo.get_value()
-        in_enc  = self.encoding_combo.get_value()
+        in_enc = self.encoding_combo.get_value()
         out_enc = self.output_encoding_combo.get_value()
 
-        if mode == "按行分割":
+        # --------------- 参数解析 ---------------
+        if mode == "按字符分割":
+            split_by_line = False
+            line_mode = None
+        elif mode == "按行分割":
             try:
                 lines = int(self.chars_entry.get_value())
                 if lines <= 0:
@@ -335,6 +339,13 @@ class FileSplitterApp:
                 target=self.run_split_by_lines,
                 args=(input_path, output_dir, lines, in_enc, out_enc),
                 daemon=True).start()
+            return
+        elif mode == "严格行分割":
+            split_by_line = True
+            line_mode = "strict"
+        elif mode == "灵活行分割":
+            split_by_line = True
+            line_mode = "flexible"
         elif mode == "份数分割":
             try:
                 parts = int(self.chars_entry.get_value())
@@ -353,46 +364,47 @@ class FileSplitterApp:
                 target=self.run_split_by_parts,
                 args=(input_path, output_dir, parts, in_enc, out_enc),
                 daemon=True).start()
+            return
         elif mode == "按正则分割":
             regex_pattern = self.regex_entry.get().strip()
             if not regex_pattern:
                 messagebox.showerror("错误", "请输入有效的正则表达式")
                 return
-                
             include_delim = self.include_delim_var.get()
-            
+
             self.open_output_btn.config(state=tk.DISABLED)
             self.start_btn.config(state=tk.DISABLED)
             self.progress_var.set(0)
             self.status_var.set("开始按正则表达式分割...")
-            
+
             threading.Thread(
                 target=self.run_split_by_regex,
                 args=(input_path, output_dir, regex_pattern, in_enc, out_enc, include_delim),
                 daemon=True).start()
+            return
         else:
-            try:
-                chars = int(self.chars_entry.get_value())
-                if chars <= 0:
-                    raise ValueError
-            except ValueError:
-                messagebox.showerror("错误", "请输入有效的字符数")
-                return
+            messagebox.showerror("错误", f"未知的分割模式: {mode}")
+            return
 
-            split_by_line = (mode != "按字符分割")
-            line_mode = 'strict' if mode == "严格行分割" else 'flexible'
+        # --------------- 按字符 / 行模式 ---------------
+        try:
+            chars = int(self.chars_entry.get_value())
+            if chars <= 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("错误", "请输入有效的字符数")
+            return
 
-            self.open_output_btn.config(state=tk.DISABLED)
-            self.start_btn.config(state=tk.DISABLED)
-            self.progress_var.set(0)
-            self.status_var.set("开始分割...")
+        self.open_output_btn.config(state=tk.DISABLED)
+        self.start_btn.config(state=tk.DISABLED)
+        self.progress_var.set(0)
+        self.status_var.set("开始分割...")
 
-            threading.Thread(
-                target=self.run_split_in_thread,
-                args=(input_path, output_dir, chars, in_enc, out_enc,
-                      split_by_line, line_mode),
-                daemon=True).start()
-
+        threading.Thread(
+            target=self.run_split_in_thread,
+            args=(input_path, output_dir, chars, in_enc, out_enc,
+                split_by_line, line_mode),
+            daemon=True).start()
     def run_split_in_thread(self, *args):
         try:
             num = split_file(*args, progress_callback=self.update_progress,
