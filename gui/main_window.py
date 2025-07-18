@@ -1,5 +1,6 @@
 import os,sys
 import tkinter as tk
+from tkinterdnd2 import DND_FILES
 from tkinter import filedialog, messagebox, ttk
 import platform
 import subprocess
@@ -41,6 +42,9 @@ class FileSplitterApp:
         self.log_widget.log("请选择输入文件和输出目录")
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)  # 关闭窗口时保存配置
+
+        self.root.drop_target_register(DND_FILES)
+        self.root.dnd_bind('<<Drop>>', self.on_drop_to_input)
 
     # ---------- 事件绑定 ----------
     def bind_setting_changes(self):
@@ -465,3 +469,23 @@ class FileSplitterApp:
             self.root.after(0, self.on_split_completed, num)
         except Exception as e:
             self.root.after(0, self.on_split_error, e)
+
+    def on_drop_to_input(self, event):
+        """拖拽文件或文件夹到窗口任意位置，自动填入输入框"""
+        raw = event.data
+        # 处理 Windows 路径可能带花括号及多个文件
+        paths = [p.strip('{}') for p in raw.split('} {') if p.strip('{}')]
+        if not paths:
+            paths = [raw.strip('{}')]
+
+        first_path = paths[0].replace('/', os.sep)
+        if os.path.isfile(first_path):
+            # 是文件 → 填入输入文件
+            self.input_entry.set_value(first_path)
+            if not self.output_entry.get_value():
+                self.output_entry.set_value(os.path.dirname(first_path))
+            self.log_widget.log(f"已拖拽输入文件: {first_path}")
+        elif os.path.isdir(first_path):
+            # 是文件夹 → 填入输出目录
+            self.output_entry.set_value(first_path)
+            self.log_widget.log(f"已拖拽输出目录: {first_path}")

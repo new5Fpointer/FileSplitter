@@ -1,5 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
+import os
+from tkinterdnd2 import DND_FILES
 
 class ImmediateCombobox(ttk.Combobox):
     def __init__(self, parent, *args, **kwargs):
@@ -23,32 +25,28 @@ class ImmediateCombobox(ttk.Combobox):
             self.event_generate("<<ImmediateSelect>>")
 
 class LabelledEntry(ttk.Frame):
-    """带标签的输入框组件"""
-    def __init__(self, parent, label_text, default_value="", 
-                 browse_cmd=None, entry_width=None, **kwargs):
+    def __init__(self, parent, label_text, default_value="", browse_cmd=None, entry_width=30, **kwargs):
         super().__init__(parent, **kwargs)
-        
-        # 创建标签
-        self.label = ttk.Label(self, text=label_text, style="Label.TLabel")
-        self.label.pack(side=tk.LEFT, padx=(0, 5))
-        
-        # 创建输入框
+
+        self.label = ttk.Label(self, text=label_text)
+        self.label.pack(side="left", padx=(0, 5))
+
         self.entry_var = tk.StringVar(value=default_value)
-        entry_options = {"textvariable": self.entry_var}
-        if entry_width:
-            entry_options["width"] = entry_width
-            
-        self.entry = ttk.Entry(self, **entry_options)
-        self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        
-        # 如果需要浏览按钮
+        self.entry = ttk.Entry(self, textvariable=self.entry_var, width=entry_width)
+        self.entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+
         if browse_cmd:
-            self.browse_btn = ttk.Button(
-                self, text="浏览...", 
-                command=browse_cmd,
-                style="Button.TButton"
-            )
-            self.browse_btn.pack(side=tk.RIGHT)
+            self.browse_btn = ttk.Button(self, text="浏览...", command=browse_cmd, width=8)
+            self.browse_btn.pack(side="right")
+
+        # 拖拽支持
+        self.entry.drop_target_register(DND_FILES)
+        self.entry.dnd_bind('<<Drop>>', self.on_drop)
+
+    def on_drop(self, event):
+        path = event.data.strip('{}').replace('/', os.sep)
+        if os.path.isfile(path) or os.path.isdir(path):
+            self.entry_var.set(path)
     
     def get_value(self):
         """获取输入框的值"""
@@ -61,6 +59,13 @@ class LabelledEntry(ttk.Frame):
     def set_label_text(self, text):
         """动态修改左侧标签文字"""
         self.label.config(text=text)
+
+    def on_drop(self, event):
+        path = event.data
+        # 处理 Windows 路径可能带花括号的问题
+        path = path.strip('{}').replace('/', os.sep)
+        if os.path.isfile(path) or os.path.isdir(path):
+            self.entry_var.set(path)
 
 class LabelledCombobox(ttk.Frame):
     def __init__(self, parent, label_text, values, default_value="", width=None, combobox_class=None, **kwargs):

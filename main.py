@@ -1,7 +1,7 @@
 from gui.main_window import FileSplitterApp
-import tkinter as tk
+from tkinterdnd2 import Tk
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = Tk()
     app = FileSplitterApp(root)
     root.mainloop()
