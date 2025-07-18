@@ -20,15 +20,6 @@ class FileSplitterApp:
         self.root.geometry("750x600")
         self.root.resizable(True, True)
 
-        # 替换Tkinter默认窗口图标
-        if getattr(sys, 'frozen', False):
-            # 打包后 exe 运行时
-            icon_path = os.path.join(sys._MEIPASS, "icon.ico")
-        else:
-            # 源码运行时
-            icon_path = os.path.join(os.path.dirname(__file__), "..", "icon.ico")
-        self.root.iconbitmap(icon_path)
-
         self.config = ConfigManager()
         self.style_manager = StyleManager(root)
 
