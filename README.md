@@ -32,9 +32,9 @@
 ### ⚙️ 配置管理
 - 自动保存用户设置到配置文件
 - 跨平台配置存储：
-  - Windows: `%APPDATA%\file_operations\settings.ini`
-  - macOS: `~/Library/Preferences/file_operations/settings.ini`
-  - Linux: `~/.config/file_operations/settings.ini`
+  - Windows: `%APPDATA%\FileSplitter\settings.ini`
+  - macOS: `~/Library/Preferences/FileSplitter/settings.ini`
+  - Linux: `~/.config/FileSplitter/settings.ini`
 
 
 ## 文件结构
