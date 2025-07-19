@@ -40,7 +40,7 @@
 ## 文件结构
 
 ```
-file_splitter/
+FileSplitter/
 ├── main.py # 程序入口
 ├── gui/ # 图形界面模块
 │ ├── main_window.py # 主窗口逻辑
@@ -67,11 +67,16 @@ file_splitter/
 2.**tkinterdnd2**
 
 - 用于检测拖拽文件
-- 安装
+- 安装 ```pip install tkinterdnd2```
 
-  ```
-  pip install tkinterdnd2
-  ```
+## 打包项目
+- **使用 Nuitka 打包**
+  - 安装`nuitka`库： ```pip install nuitka```
+  - 启动 Nuitka.bat
+- **使用 PyInstaller 打包**
+  - 安装`pyinstaller`库：```pip install pyinstaller```
+  - 启动 pyinstaller.bat
+
 
 ## 使用示例
 1. **选择输入文件和输出目录（或者拖拽文件和目录）**
