@@ -1,19 +1,7 @@
 import os
 import re
 import math
-import chardet
-import locale
-
-def calculate_total_chars(file_path, encoding):
-    total_chars = 0
-    with open(file_path, "r", encoding=encoding, errors="replace") as f:
-        while True:
-            chunk = f.read(4096)
-            if not chunk:
-                break
-            total_chars += len(chunk)
-    return total_chars
-
+from .file_utils import calculate_total_chars, determine_encodings
 
 def split_file(input_path, output_dir, chars_per_file, input_encoding, output_encoding,
               split_by_line=False, line_split_mode="strict", progress_callback=None, log_callback=None):
@@ -40,25 +28,10 @@ def split_file(input_path, output_dir, chars_per_file, input_encoding, output_en
     filename = os.path.basename(input_path)
     base_name, ext = os.path.splitext(filename)
     
-    # 如果是自动检测输入编码
-    if input_encoding == "auto":
-        with open(input_path, "rb") as f:
-            raw_data = f.read(4096)  # 读取前4KB检测
-            result = chardet.detect(raw_data)
-            input_encoding = result['encoding'] or 'utf-8'
-        if log_callback:
-            log_callback(f"自动检测到输入编码: {input_encoding}")
-    
-    # 确定输出编码
-    if output_encoding == "同输入编码":
-        output_encoding = input_encoding
-        if log_callback:
-            log_callback(f"输出编码使用输入编码: {input_encoding}")
-    elif output_encoding == "ansi":
-        # 获取系统ANSI编码
-        output_encoding = locale.getpreferredencoding(do_setlocale=False)
-        if log_callback:
-            log_callback(f"系统ANSI编码: {output_encoding}")
+    # 统一编码判断
+    input_encoding, output_encoding = determine_encodings(
+        input_path, input_encoding, output_encoding, log_callback=log_callback
+    )
     
     # 计算总字符数
     if log_callback:
@@ -270,18 +243,10 @@ def split_file_by_lines(input_path, output_dir, lines_per_file,
     filename = os.path.basename(input_path)
     base_name, ext = os.path.splitext(filename)
 
-    # 编码
-    if input_encoding == "auto":
-        with open(input_path, "rb") as f:
-            raw = f.read(4096)
-            input_encoding = chardet.detect(raw)['encoding'] or 'utf-8'
-        if log_callback:
-            log_callback(f"自动检测到输入编码: {input_encoding}")
-
-    if output_encoding == "同输入编码":
-        output_encoding = input_encoding
-    elif output_encoding == "ansi":
-        output_encoding = locale.getpreferredencoding(do_setlocale=False)
+    # 统一编码判断
+    input_encoding, output_encoding = determine_encodings(
+        input_path, input_encoding, output_encoding, log_callback=log_callback
+    )
 
     # 总行数
     with open(input_path, 'r', encoding=input_encoding, errors='replace') as f:
@@ -333,18 +298,10 @@ def split_file_by_parts(input_path, output_dir, total_parts,
     filename = os.path.basename(input_path)
     base_name, ext = os.path.splitext(filename)
 
-    # 编码处理
-    if input_encoding == "auto":
-        with open(input_path, "rb") as f:
-            raw = f.read(4096)
-            input_encoding = chardet.detect(raw)['encoding'] or 'utf-8'
-        if log_callback:
-            log_callback(f"自动检测到输入编码: {input_encoding}")
-
-    if output_encoding == "同输入编码":
-        output_encoding = input_encoding
-    elif output_encoding == "ansi":
-        output_encoding = locale.getpreferredencoding(do_setlocale=False)
+    # 统一编码判断
+    input_encoding, output_encoding = determine_encodings(
+        input_path, input_encoding, output_encoding, log_callback=log_callback
+    )
 
     # 总字符数 & 每份字符数
     total_chars = calculate_total_chars(input_path, input_encoding)
@@ -399,18 +356,10 @@ def split_file_by_regex(input_path, output_dir, regex_pattern,
     filename = os.path.basename(input_path)
     base_name, ext = os.path.splitext(filename)
     
-    # 编码处理
-    if input_encoding == "auto":
-        with open(input_path, "rb") as f:
-            raw = f.read(4096)
-            input_encoding = chardet.detect(raw)['encoding'] or 'utf-8'
-        if log_callback:
-            log_callback(f"自动检测到输入编码: {input_encoding}")
-    
-    if output_encoding == "同输入编码":
-        output_encoding = input_encoding
-    elif output_encoding == "ansi":
-        output_encoding = locale.getpreferredencoding(do_setlocale=False)
+    # 统一编码判断
+    input_encoding, output_encoding = determine_encodings(
+        input_path, input_encoding, output_encoding, log_callback=log_callback
+    )
     
     # 编译正则表达式
     try:
