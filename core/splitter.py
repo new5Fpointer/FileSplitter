@@ -3,17 +3,7 @@ import re
 import math
 import chardet
 import locale
-
-def calculate_total_chars(file_path, encoding):
-    total_chars = 0
-    with open(file_path, "r", encoding=encoding, errors="replace") as f:
-        while True:
-            chunk = f.read(4096)
-            if not chunk:
-                break
-            total_chars += len(chunk)
-    return total_chars
-
+from .file_utils import calculate_total_chars
 
 def split_file(input_path, output_dir, chars_per_file, input_encoding, output_encoding,
               split_by_line=False, line_split_mode="strict", progress_callback=None, log_callback=None):
